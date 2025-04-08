@@ -5,20 +5,25 @@ namespace LogFilesStandartizationApp
 {
     class Program
     {
-        private readonly LogFileStandartizationController logFileStandartizationController;
         static void Main(string[] args)
         {
             Console.WriteLine("THE LOG STANDARTIZATION IS RUNNING...");
 
             try
             {
-                LogFileStandartizationController.GetLogFile();
-                Console.WriteLine("Обработка завершена успешно");
+                var controller = new LogFileStandartizationController();
+                controller.GetLogFile();
+
+                Console.WriteLine("THE LOG STANDARTIZATION SUCCESSFULLY COMPLETED.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка: {ex.Message}");
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
             }
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
     }
 }

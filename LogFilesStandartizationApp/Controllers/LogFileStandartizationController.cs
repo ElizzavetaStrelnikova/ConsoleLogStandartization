@@ -1,22 +1,21 @@
-﻿using LogFilesStandartizationApp.Extensions;
-using LogFilesStandartizationApp.Interfaces;
+﻿using LogFilesStandartizationApp.Interfaces;
 using LogFilesStandartizationApp.Models;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace LogFilesStandartizationApp.Controllers
 {
     class LogFileStandartizationController : ILogFileStandartizationController
     {
-        private readonly DateTimeValidation dateTimeValidation;
-        private readonly TextValidation textValidation;
-        private readonly LogFile logFile;
-
         private readonly IConfigurationRoot config = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json")
                 .Build();
+
+        private static readonly Encoding RussianEncoding = Encoding.GetEncoding(1251);
 
         public void GetLogFile()
         {
@@ -34,40 +33,52 @@ namespace LogFilesStandartizationApp.Controllers
                 throw new FileNotFoundException("The log file was not found.");
             }
 
-            string[] data = File.ReadAllLines(fullPath);
+            string[] data = File.ReadAllLines(fullPath, RussianEncoding);
+
+            if (data.Length == 0 || data.All(string.IsNullOrWhiteSpace))
+            {
+                Console.WriteLine("The log file is empty.");
+                return;
+            }
 
             foreach (string line in data)
             {
                 if (string.IsNullOrWhiteSpace(line))
                 {
-                    Console.WriteLine("The log file is empty.");
                     continue;
                 }
 
-                (string standardizedLog, bool isValid) = ValidateLogFile(line);
+                try
+                {
+                    LogFile logEntry = LogFile.Parse(line);
 
-                if (isValid)
-                {
-                    File.AppendAllText(rightfullPath, standardizedLog + Environment.NewLine);
+                    (string standardizedLog, bool isValid) = ValidateLogFile(logEntry);
+
+                    if (isValid)
+                    {
+                        File.AppendAllText(rightfullPath, standardizedLog + Environment.NewLine, new UTF8Encoding(true));
+                    }
+                    else
+                    {
+                        File.AppendAllText(problemfullPath, line + Environment.NewLine, new UTF8Encoding(true));
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    File.AppendAllText(problemfullPath, line + Environment.NewLine);
+                    File.AppendAllText(problemfullPath, $"{line} [Error: {ex.Message}]" + Environment.NewLine, new UTF8Encoding(true));
                 }
             }
         }
 
-        public (string standardizedLog, bool isValid) ValidateLogFile(string line)
+        public (string standardizedLog, bool isValid) ValidateLogFile(LogFile logEntry)
         {
-            var logLine = new LogFile();
-            
-            var dateTime = logLine.Date;
-            dateTime = dateTimeValidation.DateTimeValidate(dateTime);
+            bool isValid = logEntry != null &&
+                 logEntry.Date != DateTime.MinValue &&
+                 !string.IsNullOrWhiteSpace(logEntry.Message);
 
-            var loggingLevel = logLine.LoggingLevel;
-            loggingLevel = textValidation.TextValidate(loggingLevel.ToString);
+            string standardizedLog = isValid ? logEntry.ToOutputFormat() : string.Empty;
 
-
+            return (standardizedLog, isValid);
         }
     }
 }
